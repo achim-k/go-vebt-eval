@@ -17,12 +17,12 @@ type vebEval struct {
 func main() {
 	
 	runs := 50
-	maxM := 20
+	maxM := 16
 
 
 	fmt.Printf("m (u=2^m)\t")
-	fmt.Printf("SIZE\t\t")
-	fmt.Printf("#Testkeys\t")
+	fmt.Printf("#STRUCTS\t")
+	fmt.Printf("#TESTKEYS\t")
 	fmt.Printf("INSERT (ns)\t")
 	fmt.Printf("SUCCESSOR (ns)\t")
 	fmt.Printf("PREDECESSOR (ns)\t")
@@ -35,6 +35,7 @@ func main() {
 		u := int(math.Pow(2, float64(i)))
 		eval := vebEval{m: i}
 		keyNo := 100 // 5%
+		//keyNo = u/2
 
 
 		// Create tree
@@ -60,7 +61,7 @@ func main() {
 			// measure average max time
 			eval.max += int(maxTime(*V, keys).Nanoseconds()/int64(keyNo))
 			// measure delete time
-			//eval.delete += int(deleteTime(V_full, keys).Nanoseconds()/int64(keyNo))
+			eval.delete += int(deleteTime(V_full, keys).Nanoseconds()/int64(keyNo))
 		}
 
 		eval.insert /= runs
@@ -85,7 +86,8 @@ func main() {
 	
 		//fmt.Printf("%v\t\t%v\t%v\t\t%v\t\t%v\t\t%v\t\t%v\t\t\t%v\t\t%v\t\t\n", 
 		//			eval.m, eval.size, eval.insert, eval.delete, eval.isMember, eval.successor, eval.predecessor, eval.min, eval.max)
-	}	
+	}
+
 }
 
 func insertTime(V *vebt.VEB, keys []int) time.Duration {
