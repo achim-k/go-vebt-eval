@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"strings"
+	"strconv"
 )
 
 type vebEval struct {
@@ -20,28 +21,47 @@ func main() {
 	// Default values
 	maxM := 16
 	runs := 50
+	testkeys := ""
+	
 	
 	fmt.Printf("Maximum tree size m (u = 2^m)?\n")
 	fmt.Scanf("%d", &maxM)
+	fmt.Printf("Number of test keys for each operation? [e.g. 100 or 50%%]\n")	
+	fmt.Scanf("%s", &testkeys)
+
+
 	fmt.Printf("How many runs per tree size (reduce effect of randomized keys)?\n")	
 	fmt.Scanf("%d", &runs)
 
+	fmt.Printf("Avg time [ns] for each operation with random generated testkeys for %v runs\n", runs)
 	fmt.Printf("m (u=2^m)\t")
 	fmt.Printf("#STRUCTS\t")
 	fmt.Printf("#TESTKEYS\t")
-	fmt.Printf("INSERT (ns)\t")
-	fmt.Printf("SUCCESSOR (ns)\t")
-	fmt.Printf("PREDECESSOR (ns)\t")
-	fmt.Printf("MIN (ns)\t")
-	fmt.Printf("MAX (ns)\t")
-	fmt.Printf("DELETE (ns)\t")
+	fmt.Printf("INSERT\t")
+	fmt.Printf("SUCCESSOR\t")
+	fmt.Printf("PREDECESSOR\t")
+	fmt.Printf("MIN\t")
+	fmt.Printf("MAX\t")
+	fmt.Printf("DELETE\t")
 	fmt.Printf("\n")
 	// measure time + space for different universe sizes (u = 2^i)
 	for i := 1; i <= maxM; i++ {
 		u := int(math.Pow(2, float64(i)))
 		eval := vebEval{m: i}
-		keyNo := 100 // 5%
-		//keyNo = u/2
+		keyNo := 100
+
+		if strings.Contains(testkeys, "%") {
+			//relative to u
+			ratio, _ := strconv.ParseInt(testkeys[:strings.Index(testkeys, "%")], 0, 0)
+			keyNo = int(u * int(ratio)/100)
+			if keyNo <= 0 {
+				keyNo = 1
+			}
+		} else {
+			ratio, _ := strconv.ParseInt(testkeys, 0, 0)
+			keyNo = int(ratio)
+		}
+
 
 
 		// Create tree
@@ -80,11 +100,11 @@ func main() {
 		fmt.Printf("%v\t\t", eval.m)
 		fmt.Printf("%v\t\t", eval.size)
 		fmt.Printf("%v\t\t", keyNo)
-		fmt.Printf("%v\t\t", eval.insert)
+		fmt.Printf("%v\t", eval.insert)
 		fmt.Printf("%v\t\t", eval.successor)
-		fmt.Printf("%v\t\t\t", eval.predecessor)
-		fmt.Printf("%v\t\t", eval.min)
-		fmt.Printf("%v\t\t", eval.max)
+		fmt.Printf("%v\t\t", eval.predecessor)
+		fmt.Printf("%v\t", eval.min)
+		fmt.Printf("%v\t", eval.max)
 		fmt.Printf("%v\t\t", eval.delete)
 
 		fmt.Printf("\n")
@@ -100,8 +120,8 @@ func main() {
 	fmt.Printf("How many runs per tree size (reduce effect of randomized keys)?\n")	
 	fmt.Scanf("%d", &runs)
 
-	fmt.Printf("Measuring avg %v time [ns] for different tree fullness ratios\n", strings.ToUpper(operation))
-	fmt.Printf("m\t")
+	fmt.Printf("Measuring avg %v time [ns] for different tree fullness ratios for %v testkeys\n", strings.ToUpper(operation), testkeys)
+	fmt.Printf("m\t#keys\t")
 	for fillRate := 0; fillRate <= 100; fillRate += 10 {
 		fmt.Printf("%v%%\t", fillRate)
 	}
@@ -113,6 +133,21 @@ func main() {
 		u := int(math.Pow(2, float64(i)))
 		V := vebt.CreateTree(u)
 		fmt.Printf("%v\t", i)
+		keyNo := 100
+
+		if strings.Contains(testkeys, "%") {
+			//relative to u
+			ratio, _ := strconv.ParseInt(testkeys[:strings.Index(testkeys, "%")], 0, 0)
+			keyNo = int(u * int(ratio)/100)
+			if keyNo <= 0 {
+				keyNo = 1
+			}
+		} else {
+			ratio, _ := strconv.ParseInt(testkeys, 0, 0)
+			keyNo = int(ratio)
+		}
+
+		fmt.Printf("%v\t", keyNo)
 
 		for fillRate := 0; fillRate <= 100; fillRate += 10 {
 			V.Clear()
@@ -122,14 +157,11 @@ func main() {
 			for i := 0; i < len(insertKeys); i++ {
 				V.Insert(insertKeys[i])
 			}
-
-
 			timeSum := 0
 
 			// Measure average time it takes to insert 1 random key
 			for r := 0; r < runs; r++ {
-				keys := createRandomKeys(100, u)
-
+				keys := createRandomKeys(keyNo, u)
 				switch operation {
 				case "insert":
 					timeSum += int(insertTime(V, keys).Nanoseconds()/int64(len(keys)))
