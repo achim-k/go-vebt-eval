@@ -6,6 +6,7 @@ import (
 	"time"
 	"math"
 	"math/rand"
+	"strings"
 )
 
 type vebEval struct {
@@ -15,10 +16,15 @@ type vebEval struct {
 }
 
 func main() {
-	
-	runs := 50
-	maxM := 16
 
+	// Default values
+	maxM := 16
+	runs := 50
+	
+	fmt.Printf("Maximum tree size m (u = 2^m)?\n")
+	fmt.Scanf("%d", &maxM)
+	fmt.Printf("How many runs per tree size (reduce effect of randomized keys)?\n")	
+	fmt.Scanf("%d", &runs)
 
 	fmt.Printf("m (u=2^m)\t")
 	fmt.Printf("#STRUCTS\t")
@@ -82,10 +88,68 @@ func main() {
 		fmt.Printf("%v\t\t", eval.delete)
 
 		fmt.Printf("\n")
+	}
 
-	
-		//fmt.Printf("%v\t\t%v\t%v\t\t%v\t\t%v\t\t%v\t\t%v\t\t\t%v\t\t%v\t\t\n", 
-		//			eval.m, eval.size, eval.insert, eval.delete, eval.isMember, eval.successor, eval.predecessor, eval.min, eval.max)
+
+	var operation string
+	fmt.Printf("Measuring time for {operation} for different tree fullness rate\n")
+	fmt.Printf("operation? Choices: [insert, delete, successor, predecessor, min, max]\n")
+	fmt.Scanf("%s", &operation)
+	fmt.Printf("Maximum tree size m (u = 2^m)?\n")
+	fmt.Scanf("%d", &maxM)
+	fmt.Printf("How many runs per tree size (reduce effect of randomized keys)?\n")	
+	fmt.Scanf("%d", &runs)
+
+	fmt.Printf("Measuring avg %v time [ns] for different tree fullness ratios\n", strings.ToUpper(operation))
+	fmt.Printf("m\t")
+	for fillRate := 0; fillRate <= 100; fillRate += 10 {
+		fmt.Printf("%v%%\t", fillRate)
+	}
+	fmt.Printf("\n")
+
+
+	for i := 1; i <= maxM; i++ {
+		
+		u := int(math.Pow(2, float64(i)))
+		V := vebt.CreateTree(u)
+		fmt.Printf("%v\t", i)
+
+		for fillRate := 0; fillRate <= 100; fillRate += 10 {
+			V.Clear()
+			// Create number of random keys to fill tree (depending on fillRate)
+			insertKeys := createRandomKeys(int(u * fillRate / 100), u)
+			// Fill tree
+			for i := 0; i < len(insertKeys); i++ {
+				V.Insert(insertKeys[i])
+			}
+
+
+			timeSum := 0
+
+			// Measure average time it takes to insert 1 random key
+			for r := 0; r < runs; r++ {
+				keys := createRandomKeys(100, u)
+
+				switch operation {
+				case "insert":
+					timeSum += int(insertTime(V, keys).Nanoseconds()/int64(len(keys)))
+				case "delete":
+					timeSum += int(deleteTime(V, keys).Nanoseconds()/int64(len(keys)))	
+				case "successor":
+					timeSum += int(successorTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+				case "predecessor":
+					timeSum += int(predecessorTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+				case "min":
+					timeSum += int(minTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+				case "max":
+					timeSum += int(maxTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+				}				
+			}
+
+			timeSum /= runs
+			fmt.Printf("%v\t", timeSum)
+		}
+		fmt.Printf("\n")
 	}
 
 }
