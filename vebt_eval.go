@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"strings"
 	"strconv"
+	"unsafe"
 )
 
 type vebEval struct {
@@ -16,39 +17,53 @@ type vebEval struct {
 	insert, delete, isMember, successor, predecessor, min, max int
 }
 
+type VEB struct {
+	u, min, max int    //universe size, min-, max value
+	summary     *VEB   //pointer to summary
+	cluster     []*VEB // array of pointers to each child cluster
+}
+
 func main() {
 
 	// Default values
 	maxM := 16
 	runs := 50
 	testkeys := ""
+	treeFullness := ""
+	var operation string
+	randomTestKeys := 0
+
+	var c VEB
+	var V VEB
+	V.u, V.min, V.max = 1,1,1
+	V.summary = &c
+	V.cluster = append(V.cluster, &c)
+
+	fmt.Println("Sizeof VEB struct in Bytes:", unsafe.Sizeof(c), unsafe.Sizeof(V.cluster))
 	
 	
 	fmt.Printf("Maximum tree size m (u = 2^m)?\n")
 	fmt.Scanf("%d", &maxM)
+	fmt.Printf("operation? Choices: \n[count, insert, delete, member, successor, predecessor, min, max]\n")
+	fmt.Scanf("%s", &operation)
 	fmt.Printf("Number of test keys for each operation? [e.g. 100 or 50%%]\n")	
 	fmt.Scanf("%s", &testkeys)
-
+	fmt.Printf("Create keys randomly=1 or sequentially=0?\n")	
+	fmt.Scanf("%d", &randomTestKeys)
 
 	fmt.Printf("How many runs per tree size (reduce effect of randomized keys)?\n")	
 	fmt.Scanf("%d", &runs)
 
+		fmt.Printf("Fullness ratio of tree? [e.g. 100 or 50%%]\n")
+	fmt.Scanf("%s", &treeFullness)
+	
 	fmt.Printf("Avg time [ns] for each operation with random generated testkeys for %v runs\n", runs)
-	fmt.Printf("m (u=2^m)\t")
-	fmt.Printf("#STRUCTS\t")
-	fmt.Printf("#TESTKEYS\t")
-	fmt.Printf("INSERT\t")
-	fmt.Printf("SUCCESSOR\t")
-	fmt.Printf("PREDECESSOR\t")
-	fmt.Printf("MIN\t")
-	fmt.Printf("MAX\t")
-	fmt.Printf("DELETE\t")
-	fmt.Printf("\n")
+	fmt.Printf("m (u=2^m)\t%v\n", operation)
 	// measure time + space for different universe sizes (u = 2^i)
 	for i := 1; i <= maxM; i++ {
 		u := int(math.Pow(2, float64(i)))
-		eval := vebEval{m: i}
 		keyNo := 100
+		treeInitKeyNo := 100
 
 		if strings.Contains(testkeys, "%") {
 			//relative to u
@@ -61,59 +76,68 @@ func main() {
 			ratio, _ := strconv.ParseInt(testkeys, 0, 0)
 			keyNo = int(ratio)
 		}
-
-
+		if strings.Contains(treeFullness, "%") {
+			//relative to u
+			treeFullnessRatio, _ := strconv.ParseInt(treeFullness[:strings.Index(treeFullness, "%")], 0, 0)
+			treeInitKeyNo = int(u * int(treeFullnessRatio)/100)
+			if treeInitKeyNo <= 0 {
+				treeInitKeyNo = 1
+			}
+		} else {
+			treeFullnessRatio, _ := strconv.ParseInt(treeFullness, 0, 0)
+			treeInitKeyNo = int(treeFullnessRatio)
+		}
 
 		// Create tree
 		V := vebt.CreateTree(u)
-		V_full := vebt.CreateTree(u)
-
-		eval.size = V.Count()
+		timeSum := 0
 
 		// run more than once, otherwise random keys have to much influence
 		for run := 0; run < runs; run++ {
-			V.Clear() // perform measurements on empty tree
-			V_full.Fill() // fill tree again (for deletion)
+			keys := []int{}
 
-			keys := createRandomKeys(keyNo, u)
-			// measure average insert time
-			eval.insert += int(insertTime(V, keys).Nanoseconds()/int64(keyNo))
-			// measure average successor time
-			eval.successor += int(successorTime(*V, keys).Nanoseconds()/int64(keyNo))
-			// measure average predecessor time
-			eval.predecessor += int(predecessorTime(*V, keys).Nanoseconds()/int64(keyNo))
-			// measure average min time
-			eval.min += int(minTime(*V, keys).Nanoseconds()/int64(keyNo))
-			// measure average max time
-			eval.max += int(maxTime(*V, keys).Nanoseconds()/int64(keyNo))
-			// measure delete time
-			eval.delete += int(deleteTime(V_full, keys).Nanoseconds()/int64(keyNo))
+			// Fill tree with random keys to given number before performing operation
+			if operation != "count" {
+				V.Clear() // clear keys inserted before
+				initKeys := createKeys(treeInitKeyNo, u, 1)
+				for l := 0; l < len(initKeys); l++ {
+					V.Insert(initKeys[l])
+				}
+
+				// Create keys for testing operation with
+				keys = createKeys(keyNo, u, randomTestKeys)
+			}
+		
+			switch operation {
+			case "count":
+				timeSum = V.Count()
+			case "insert":
+				timeSum += int(insertTime(V, keys).Nanoseconds())
+			case "delete":
+				timeSum += int(deleteTime(V, keys).Nanoseconds())	
+			case "member":
+				timeSum += int(isMemberTime(*V, keys).Nanoseconds())
+			case "successor":
+				timeSum += int(successorTime(*V, keys).Nanoseconds())	
+			case "predecessor":
+				timeSum += int(predecessorTime(*V, keys).Nanoseconds())	
+			case "min":
+				timeSum += int(minTime(*V, keys).Nanoseconds())	
+			case "max":
+				timeSum += int(maxTime(*V, keys).Nanoseconds())	
+			}	
+
 		}
 
-		eval.insert /= runs
-		eval.successor /= runs
-		eval.predecessor /= runs
-		eval.min /= runs
-		eval.max /= runs
-		eval.delete /= runs
-
-		fmt.Printf("%v\t\t", eval.m)
-		fmt.Printf("%v\t\t", eval.size)
-		fmt.Printf("%v\t\t", keyNo)
-		fmt.Printf("%v\t", eval.insert)
-		fmt.Printf("%v\t\t", eval.successor)
-		fmt.Printf("%v\t\t", eval.predecessor)
-		fmt.Printf("%v\t", eval.min)
-		fmt.Printf("%v\t", eval.max)
-		fmt.Printf("%v\t\t", eval.delete)
-
-		fmt.Printf("\n")
+		timeSum /= runs * keyNo
+		
+		fmt.Printf("%v\t\t%v\n", i, timeSum)
 	}
 
 
-	var operation string
+	
 	fmt.Printf("Measuring time for {operation} for different tree fullness rate\n")
-	fmt.Printf("operation? Choices: [insert, delete, successor, predecessor, min, max]\n")
+	fmt.Printf("operation? Choices: \n[insert, delete, member, successor, predecessor, min, max]\n")
 	fmt.Scanf("%s", &operation)
 	fmt.Printf("Maximum tree size m (u = 2^m)?\n")
 	fmt.Scanf("%d", &maxM)
@@ -152,7 +176,7 @@ func main() {
 		for fillRate := 0; fillRate <= 100; fillRate += 10 {
 			V.Clear()
 			// Create number of random keys to fill tree (depending on fillRate)
-			insertKeys := createRandomKeys(int(u * fillRate / 100), u)
+			insertKeys := createKeys(int(u * fillRate / 100), u, 1)
 			// Fill tree
 			for i := 0; i < len(insertKeys); i++ {
 				V.Insert(insertKeys[i])
@@ -161,24 +185,26 @@ func main() {
 
 			// Measure average time it takes to insert 1 random key
 			for r := 0; r < runs; r++ {
-				keys := createRandomKeys(keyNo, u)
+				keys := createKeys(keyNo, u, randomTestKeys)
 				switch operation {
 				case "insert":
-					timeSum += int(insertTime(V, keys).Nanoseconds()/int64(len(keys)))
+					timeSum += int(insertTime(V, keys).Nanoseconds())
 				case "delete":
-					timeSum += int(deleteTime(V, keys).Nanoseconds()/int64(len(keys)))	
+					timeSum += int(deleteTime(V, keys).Nanoseconds())	
+				case "member":
+					timeSum += int(isMemberTime(*V, keys).Nanoseconds())
 				case "successor":
-					timeSum += int(successorTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+					timeSum += int(successorTime(*V, keys).Nanoseconds())	
 				case "predecessor":
-					timeSum += int(predecessorTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+					timeSum += int(predecessorTime(*V, keys).Nanoseconds())	
 				case "min":
-					timeSum += int(minTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+					timeSum += int(minTime(*V, keys).Nanoseconds())	
 				case "max":
-					timeSum += int(maxTime(*V, keys).Nanoseconds()/int64(len(keys)))	
+					timeSum += int(maxTime(*V, keys).Nanoseconds())	
 				}				
 			}
 
-			timeSum /= runs
+			timeSum /= runs * keyNo
 			fmt.Printf("%v\t", timeSum)
 		}
 		fmt.Printf("\n")
@@ -242,7 +268,7 @@ func maxTime(V vebt.VEB, keys []int) time.Duration {
 	return time.Since(start)
 }
 
-func createRandomKeys(count, max int) []int {
+func createKeys(count, max int, randomized int) []int {
 	keys := []int{}
 
 	for i := 0; i < max; i++ {
@@ -251,10 +277,13 @@ func createRandomKeys(count, max int) []int {
 
 	//shuffle order of keys
 	rand.Seed(time.Now().UnixNano())
-	for i := range keys {
+
+	if randomized != 0 {
+		for i := range keys {
         j := rand.Intn(i + 1)
         keys[i], keys[j] = keys[j], keys[i]
-    }
+    	}
+	}
 
 	for count > len(keys) {
 		rand.Seed(time.Now().UnixNano())
